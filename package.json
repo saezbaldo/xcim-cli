@@ -1,0 +1,14 @@
+{
+  "name": "xcim-cli",
+  "version": "0.1.0",
+  "description": "Read-only XCIM integration diagnostics for people and agents",
+  "type": "module",
+  "bin": { "xcim": "./xcim.mjs" },
+  "engines": { "node": ">=22" },
+  "files": ["xcim.mjs", "README.md"],
+  "scripts": { "test": "node --test tests/node.test.mjs" },
+  "license": "UNLICENSED",
+  "homepage": "https://xcim.org/tools/",
+  "repository": { "type": "git", "url": "git+https://github.com/saezbaldo/xcim-cli.git" },
+  "bugs": { "url": "https://github.com/saezbaldo/xcim-cli/issues" }
+}

@@ -1,0 +1,70 @@
+name: Test XCIM CLI and publish to PyPI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: [xcim-cli-v0.1.0]
+
+permissions: {}
+
+concurrency:
+  group: xcim-cli-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Test both CLI editions
+        run: |
+          npm test
+          python -m unittest discover -s tests -v
+      - name: Build and install the Python candidate
+        run: |
+          python -m pip --isolated install --index-url https://pypi.org/simple setuptools==80.9.0 wheel==0.45.1
+          python -m pip wheel --no-build-isolation --no-deps --no-index --wheel-dir dist .
+          python -c "from setuptools.build_meta import build_sdist; build_sdist('dist')"
+          sha256sum dist/xcim_cli-0.1.0-py3-none-any.whl dist/xcim_cli-0.1.0.tar.gz
+          python -m venv "$RUNNER_TEMP/xcim-cli-check"
+          "$RUNNER_TEMP/xcim-cli-check/bin/python" -m pip install --no-index --no-deps dist/xcim_cli-0.1.0-py3-none-any.whl
+          "$RUNNER_TEMP/xcim-cli-check/bin/xcim" doctor --help
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.1.0'
+        with:
+          name: xcim-cli-python-distributions
+          path: |
+            dist/xcim_cli-0.1.0-py3-none-any.whl
+            dist/xcim_cli-0.1.0.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: github.repository == 'saezbaldo/xcim-cli' && github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.1.0'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: pypi-xcim-cli
+      url: https://pypi.org/project/xcim-cli/0.1.0/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: xcim-cli-python-distributions
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
