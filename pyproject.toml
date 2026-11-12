@@ -8,7 +8,8 @@ version = "0.1.0"
 description = "Read-only XCIM integration diagnostics for people and agents"
 readme = "README.md"
 requires-python = ">=3.9"
-license = "LicenseRef-Proprietary"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = []
 
 [project.urls]

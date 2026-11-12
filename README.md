@@ -54,3 +54,7 @@ python -m unittest discover -s tests
 ```
 
 The suites use synthetic configuration, assert the read-only network contract, and check parity across the two editions. Do not share private setup snapshots or credentials in issues, pull requests, or test fixtures.
+
+## License
+
+This standalone CLI is licensed under [Apache-2.0](https://github.com/saezbaldo/xcim-cli/blob/main/LICENSE).

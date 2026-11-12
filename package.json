@@ -5,9 +5,9 @@
   "type": "module",
   "bin": { "xcim": "./xcim.mjs" },
   "engines": { "node": ">=22" },
-  "files": ["xcim.mjs", "README.md"],
+  "files": ["xcim.mjs", "README.md", "LICENSE"],
   "scripts": { "test": "node --test tests/node.test.mjs" },
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "homepage": "https://xcim.org/tools/",
   "repository": { "type": "git", "url": "git+https://github.com/saezbaldo/xcim-cli.git" },
   "bugs": { "url": "https://github.com/saezbaldo/xcim-cli/issues" }
