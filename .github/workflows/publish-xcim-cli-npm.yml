@@ -1,0 +1,70 @@
+name: Publish XCIM CLI 0.1.1 to npm
+
+on:
+  push:
+    tags: [xcim-cli-npm-v0.1.1]
+
+permissions: {}
+
+concurrency:
+  group: xcim-cli-npm-0.1.1
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    if: github.repository == 'saezbaldo/xcim-cli' && github.ref == 'refs/tags/xcim-cli-npm-v0.1.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.22.3'
+          package-manager-cache: false
+      - name: Test and inspect the npm tarball
+        shell: bash
+        run: |
+          npm test
+          mkdir -p dist
+          npm pack --ignore-scripts --pack-destination dist
+          tarball="$PWD/dist/xcim-cli-0.1.1.tgz"
+          test "$(tar -tzf "$tarball" | LC_ALL=C sort)" = "$(printf '%s\n' package/LICENSE package/README.md package/package.json package/xcim.mjs)"
+          cmp LICENSE <(tar -xOf "$tarball" package/LICENSE)
+          sha512sum "$tarball"
+          npm install --prefix "$RUNNER_TEMP/xcim-npm-check" --offline --ignore-scripts --no-audit --no-fund --no-package-lock "$tarball"
+          doctor_exit=0
+          "$RUNNER_TEMP/xcim-npm-check/node_modules/.bin/xcim" doctor --attester emabled --offline --json > "$RUNNER_TEMP/xcim-doctor.json" || doctor_exit=$?
+          test "$doctor_exit" -eq 2
+          node -e 'const r = require(process.argv[1]); if (r.schema !== "xcim-doctor/v1" || r.attester !== "emabled" || r.read_only !== true) process.exit(1)' "$RUNNER_TEMP/xcim-doctor.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: xcim-cli-npm-tarball
+          path: dist/xcim-cli-0.1.1.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: pack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: npm-xcim-cli
+      url: https://www.npmjs.com/package/xcim-cli/v/0.1.1
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: xcim-cli-npm-tarball
+          path: dist
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.22.3'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Publish the verified tarball via OIDC
+        run: npm publish ./dist/xcim-cli-0.1.1.tgz --access public --ignore-scripts --provenance
