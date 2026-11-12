@@ -5,7 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
-    tags: [xcim-cli-v0.1.0]
+    tags: [xcim-cli-v0.1.1]
 
 permissions: {}
 
@@ -38,28 +38,28 @@ jobs:
           python -m pip --isolated install --index-url https://pypi.org/simple setuptools==80.9.0 wheel==0.45.1
           python -m pip wheel --no-build-isolation --no-deps --no-index --wheel-dir dist .
           python -c "from setuptools.build_meta import build_sdist; build_sdist('dist')"
-          sha256sum dist/xcim_cli-0.1.0-py3-none-any.whl dist/xcim_cli-0.1.0.tar.gz
+          sha256sum dist/xcim_cli-0.1.1-py3-none-any.whl dist/xcim_cli-0.1.1.tar.gz
           python -m venv "$RUNNER_TEMP/xcim-cli-check"
-          "$RUNNER_TEMP/xcim-cli-check/bin/python" -m pip install --no-index --no-deps dist/xcim_cli-0.1.0-py3-none-any.whl
+          "$RUNNER_TEMP/xcim-cli-check/bin/python" -m pip install --no-index --no-deps dist/xcim_cli-0.1.1-py3-none-any.whl
           "$RUNNER_TEMP/xcim-cli-check/bin/xcim" doctor --help
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.1.0'
+        if: github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.1.1'
         with:
           name: xcim-cli-python-distributions
           path: |
-            dist/xcim_cli-0.1.0-py3-none-any.whl
-            dist/xcim_cli-0.1.0.tar.gz
+            dist/xcim_cli-0.1.1-py3-none-any.whl
+            dist/xcim_cli-0.1.1.tar.gz
           if-no-files-found: error
           retention-days: 7
 
   publish:
-    if: github.repository == 'saezbaldo/xcim-cli' && github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.1.0'
+    if: github.repository == 'saezbaldo/xcim-cli' && github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.1.1'
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
       name: pypi-xcim-cli
-      url: https://pypi.org/project/xcim-cli/0.1.0/
+      url: https://pypi.org/project/xcim-cli/0.1.1/
     permissions:
       id-token: write
     steps:
