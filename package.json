@@ -1,11 +1,11 @@
 {
   "name": "xcim-cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Read-only XCIM integration diagnostics for people and agents",
   "type": "module",
   "bin": { "xcim": "./xcim.mjs" },
   "engines": { "node": ">=22" },
-  "files": ["xcim.mjs", "README.md", "LICENSE"],
+  "files": ["xcim.mjs", "README.md", "CHANGELOG.md", "LICENSE"],
   "scripts": { "test": "node --test tests/node.test.mjs" },
   "license": "Apache-2.0",
   "homepage": "https://xcim.org/tools/",
