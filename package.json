@@ -1,6 +1,6 @@
 {
   "name": "xcim-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Read-only XCIM integration diagnostics for people and agents",
   "type": "module",
   "bin": { "xcim": "./xcim.mjs" },

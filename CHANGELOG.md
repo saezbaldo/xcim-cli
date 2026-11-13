@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - Distinguish explicitly selected site-managed OIDC from the default hosted relay; report the site-managed setup as unverified rather than requiring relay setup.
 

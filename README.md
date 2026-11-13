@@ -10,7 +10,7 @@ pipx run --spec xcim-cli==0.2.0 xcim doctor --attester emabled --json
 
 Node 22+ or Python 3.9+ is required, respectively. Run from source with `node xcim.mjs doctor --attester emabled --json` or `python xcim_doctor.py doctor --attester emabled --json`.
 
-**Development version:** The `--oidc-mode` option documented below is unreleased and is not available in the published 0.2.0 packages. Until a newer version is published, use it only from this development source; the installation commands above install 0.2.0.
+**Development version:** The `--oidc-mode` option documented below is planned for 0.3.0 or later and is not available in 0.2.0. The installation commands above install 0.2.0. Check the npm and PyPI registry listings to see whether 0.3.0 is published before installing it.
 
 ## Choose an attester and profile
 
