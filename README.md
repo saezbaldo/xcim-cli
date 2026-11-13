@@ -2,15 +2,16 @@
 
 `xcim doctor` reports the configuration that an agent can actually observe. It never provisions an application, writes to an attester, reads SQL, or performs consent. The distribution is **xcim-cli** on both registries; the executable is **xcim**. The npm and Python editions have no runtime dependencies beyond their own runtime.
 
+The commands below use xcim-cli 0.3.0. Before running them, confirm that this version is available in the registry you plan to use; npm and PyPI may become available at different times. Until it is available, use the published 0.2.0 version without the `--oidc-mode` option.
+
 ```sh
-# Run this version once it is published:
-npm exec --package=xcim-cli@0.2.0 -- xcim doctor --attester emabled --json
-pipx run --spec xcim-cli==0.2.0 xcim doctor --attester emabled --json
+npm exec --package=xcim-cli@0.3.0 -- xcim doctor --attester emabled --json
+pipx run --spec xcim-cli==0.3.0 xcim doctor --attester emabled --json
 ```
 
 Node 22+ or Python 3.9+ is required, respectively. Run from source with `node xcim.mjs doctor --attester emabled --json` or `python xcim_doctor.py doctor --attester emabled --json`.
 
-**Development version:** The `--oidc-mode` option documented below is planned for 0.3.0 or later and is not available in 0.2.0. The installation commands above install 0.2.0. Check the npm and PyPI registry listings to see whether 0.3.0 is published before installing it.
+The `--oidc-mode` option requires xcim-cli 0.3.0 or later; it is not available in 0.2.0.
 
 ## Choose an attester and profile
 
