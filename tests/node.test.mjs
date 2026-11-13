@@ -43,7 +43,9 @@ test('parses a compatible attester origin without forwarding auth or URL compone
   assert.throws(() => parseArgs(['doctor', '--attester', 'https://other.example', '--snapshot', 'setup.json']));
   for (const flags of [['--workflow', 'other'], ['--workflow', 'esp', '--attester', 'https://other.example'],
     ['--workflow', 'esp', '--profile', 'oidc'], ['--workflow', 'esp', '--intent', 'test'],
-    ['--intent', 'test', '--profile', 'evp']]) assert.throws(() => parseArgs(['doctor', ...flags]));
+    ['--intent', 'test', '--profile', 'evp'], ['--workflow', 'esp', '--oidc-mode', 'site-managed'],
+    ['--profile', 'evp', '--oidc-mode', 'hosted'], ['--oidc-mode', 'invalid'],
+    ['--oidc-mode', 'hosted', '--oidc-mode', 'site-managed']]) assert.throws(() => parseArgs(['doctor', ...flags]));
 });
 
 test('requires fresh, well-shaped evidence; pagination never means absent', () => {
@@ -146,6 +148,38 @@ test('connected OIDC with expired review is advisory unless testing', async (t) 
   assert.equal(check(testIntent.report, 'oidc.provider_review').next_action, 'complete_authorized_provider_review');
   const notConnected = diagnose(parseArgs(args), caps, snapshot, 'fresh', 'observed');
   assert.equal(check(notConnected, 'oidc.provider_review').severity, 'blocker');
+});
+
+test('site-managed OIDC does not demand the hosted relay and remains unverified', async (t) => {
+  const managed = { ...snapshot, exchangeEndpointActive: false, sources: [{ ...source,
+    oauthBindingActive: false, oauthReviewCurrent: false, oauthBootstrapConfirmed: false }] };
+  const file = await snapshotFile(t, managed);
+  const args = ['doctor', '--profile', 'oidc', '--snapshot', file];
+  const defaultHosted = await run(parseArgs(args), async () => caps);
+  const explicitHosted = await run(parseArgs([...args, '--oidc-mode', 'hosted']), async () => caps);
+  assert.deepEqual(defaultHosted, explicitHosted);
+  assert.equal(defaultHosted.report.summary.blocking, 4);
+  for (const intent of ['operate', 'test']) {
+    const result = await run(parseArgs([...args, '--oidc-mode', 'site-managed', '--intent', intent]), async () => caps);
+    assert.equal(result.code, 2);
+    assert.equal(result.report.summary.blocking, 1);
+    assert.deepEqual(check(result.report, 'oidc.site_managed_setup'), {
+      id: 'oidc.site_managed_setup', status: 'unknown', evidence: 'not_checked', human_required: false,
+      next_action: 'verify_site_managed_oidc_setup', actor: 'agent', severity: 'blocker', blocking: true
+    });
+    for (const id of ['oidc.exchange_endpoint', 'oidc.provider_binding', 'oidc.provider_review', 'oidc.bootstrap'])
+      assert.equal(check(result.report, id), undefined);
+    assert.equal(check(result.report, 'oidc.support').status, 'configured');
+    assert(result.report.not_checked.includes('site_managed_oidc_setup'));
+    assert.match(result.report.notes[0], /not assessed/);
+  }
+  const both = diagnose(parseArgs(['doctor', '--profile', 'both', '--oidc-mode', 'site-managed']), caps, managed, 'fresh', 'observed');
+  assert.equal(check(both, 'evp.delivery_mode').status, 'configured');
+  assert.equal(check(both, 'oidc.site_managed_setup').status, 'unknown');
+  const relayReady = { ...snapshot, sources: [{ ...source, oauthReviewCurrent: true, oauthBootstrapConfirmed: true }] };
+  const separateSite = diagnose(parseArgs(['doctor', '--profile', 'oidc', '--oidc-mode', 'site-managed']), caps, relayReady, 'fresh', 'observed');
+  assert.equal(check(separateSite, 'oidc.site_managed_setup').status, 'unknown');
+  assert.equal(separateSite.summary.blocking, 1);
 });
 
 test('ESP diagnoses only snapshot facts and never uses the public transport', async (t) => {

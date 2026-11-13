@@ -5,7 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
-    tags: [xcim-cli-v0.2.0]
+    tags: [xcim-cli-v0.3.0]
 
 permissions: {}
 
@@ -38,31 +38,36 @@ jobs:
           python -m pip --isolated install --index-url https://pypi.org/simple setuptools==80.9.0 wheel==0.45.1
           python -m pip wheel --no-build-isolation --no-deps --no-index --wheel-dir dist .
           python -c "from setuptools.build_meta import build_sdist; build_sdist('dist')"
-          sha256sum dist/xcim_cli-0.2.0-py3-none-any.whl dist/xcim_cli-0.2.0.tar.gz
+          sha256sum dist/xcim_cli-0.3.0-py3-none-any.whl dist/xcim_cli-0.3.0.tar.gz
           python -m venv "$RUNNER_TEMP/xcim-cli-check"
-          "$RUNNER_TEMP/xcim-cli-check/bin/python" -m pip install --no-index --no-deps dist/xcim_cli-0.2.0-py3-none-any.whl
+          "$RUNNER_TEMP/xcim-cli-check/bin/python" -m pip install --no-index --no-deps dist/xcim_cli-0.3.0-py3-none-any.whl
+          "$RUNNER_TEMP/xcim-cli-check/bin/python" -c 'from importlib.metadata import version; assert version("xcim-cli") == "0.3.0"'
           doctor_exit=0
           "$RUNNER_TEMP/xcim-cli-check/bin/xcim" doctor --attester emabled --workflow esp --json > "$RUNNER_TEMP/xcim-doctor.json" || doctor_exit=$?
           test "$doctor_exit" -eq 2
           python -c 'import json, sys; r = json.load(open(sys.argv[1])); assert (r["schema"], r["attester"], r["workflow"], r["capabilities"], r["read_only"]) == ("xcim-doctor/v1", "emabled", "esp", "not_checked", True)' "$RUNNER_TEMP/xcim-doctor.json"
+          doctor_exit=0
+          "$RUNNER_TEMP/xcim-cli-check/bin/xcim" doctor --attester emabled --offline --profile oidc --oidc-mode site-managed --json > "$RUNNER_TEMP/xcim-doctor-site.json" || doctor_exit=$?
+          test "$doctor_exit" -eq 2
+          python -c 'import json, sys; r = json.load(open(sys.argv[1])); c = next(c for c in r["checks"] if c["id"] == "oidc.site_managed_setup"); assert r["schema"] == "xcim-doctor/v1" and r["read_only"] is True and (c["status"], c["evidence"], c["blocking"], c["next_action"]) == ("unknown", "not_checked", True, "verify_site_managed_oidc_setup") and not any(c["id"] in ("oidc.exchange_endpoint", "oidc.provider_binding", "oidc.provider_review", "oidc.bootstrap") for c in r["checks"])' "$RUNNER_TEMP/xcim-doctor-site.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.2.0'
+        if: github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.3.0'
         with:
           name: xcim-cli-python-distributions
           path: |
-            dist/xcim_cli-0.2.0-py3-none-any.whl
-            dist/xcim_cli-0.2.0.tar.gz
+            dist/xcim_cli-0.3.0-py3-none-any.whl
+            dist/xcim_cli-0.3.0.tar.gz
           if-no-files-found: error
           retention-days: 7
 
   publish:
-    if: github.repository == 'saezbaldo/xcim-cli' && github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.2.0'
+    if: github.repository == 'saezbaldo/xcim-cli' && github.event_name == 'push' && github.ref == 'refs/tags/xcim-cli-v0.3.0'
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
       name: pypi-xcim-cli
-      url: https://pypi.org/project/xcim-cli/0.2.0/
+      url: https://pypi.org/project/xcim-cli/0.3.0/
     permissions:
       id-token: write
     steps:

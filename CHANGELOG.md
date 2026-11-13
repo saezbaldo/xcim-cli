@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Distinguish explicitly selected site-managed OIDC from the default hosted relay; report the site-managed setup as unverified rather than requiring relay setup.
+
 ## 0.2.0
 
 - Added `--workflow esp` for offline, read-only ESP setup diagnostics. The snapshot contains status flags, not recipient or authorization records.
