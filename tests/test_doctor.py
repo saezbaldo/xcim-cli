@@ -118,6 +118,11 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(code, 2)
             self.assertTrue(check(report, "oidc.provider_review")["human_required"])
             self.assertTrue(check(report, "oidc.provider_review")["blocking"])
+            setup["sources"][0]["oauthBootstrapConfirmed"] = False
+            path.write_text(json.dumps(setup), encoding="utf-8")
+            code, report = doctor.run(doctor.parse_args(args), lambda origin: CAPS)
+            self.assertEqual(code, 2)
+            self.assertTrue(check(report, "oidc.provider_review")["blocking"])
 
     def test_site_managed_oidc_does_not_require_hosted_relay_or_assert_readiness(self):
         setup = sample()
@@ -155,11 +160,6 @@ class DoctorTests(unittest.TestCase):
                                      CAPS, relay_ready, "fresh", "observed")
             self.assertEqual(check(report, "oidc.site_managed_setup")["status"], "unknown")
             self.assertEqual(report["summary"]["blocking"], 1)
-            setup["sources"][0]["oauthBootstrapConfirmed"] = False
-            path.write_text(json.dumps(setup), encoding="utf-8")
-            code, report = doctor.run(doctor.parse_args(args), lambda origin: CAPS)
-            self.assertEqual(code, 2)
-            self.assertTrue(check(report, "oidc.provider_review")["blocking"])
 
     def test_versioned_selected_source_and_explicit_override(self):
         company = sample()
@@ -242,6 +242,20 @@ class DoctorTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 doctor.fetch_capabilities("https://api.emabled.com")
             self.assertEqual(connection.request.call_count, 2)
+
+    @unittest.skipUnless(shutil.which("node"), "Node is needed for cross-edition parity")
+    def test_diagnose_prior_programmatic_options_default_to_hosted_in_both_editions(self):
+        opts = doctor.parse_args(["doctor", "--profile", "oidc"])
+        del opts["oidc-mode"]
+        report = doctor.diagnose(opts, None, None, "absent", "not_checked")
+        self.assertEqual(check(report, "oidc.provider_binding")["status"], "unknown")
+        self.assertNotIn("oidc.site_managed_setup", {row["id"] for row in report["checks"]})
+        script = ("import {diagnose} from './xcim.mjs';"
+                  "const opts=JSON.parse(process.argv[2]);"
+                  "process.stdout.write(JSON.stringify(diagnose(opts,null,null,'absent','not_checked')));")
+        result = subprocess.run(["node", "--input-type=module", "-e", script, "README.md", json.dumps(opts)],
+                                cwd=ROOT, capture_output=True, text=True, timeout=10, check=True)
+        self.assertEqual(report, json.loads(result.stdout))
 
     @unittest.skipUnless(shutil.which("node"), "Node is needed for cross-edition parity")
     def test_native_cli_json_parity(self):

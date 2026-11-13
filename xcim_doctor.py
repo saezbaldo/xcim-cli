@@ -270,7 +270,7 @@ def diagnose(opts, caps, data, snapshot_status, capabilities_status):
     source = selected if bound else {}
     private_check("source.website_dns_recorded", source.get("domainVerificationRecorded"), "review_website_dns_challenge")
     private_check("source.return_uri", source.get("returnRegistered"), "review_and_register_exact_return_uri")
-    if oidc and opts["oidc-mode"] == "site-managed":
+    if oidc and opts.get("oidc-mode", "hosted") == "site-managed":
         add("oidc.site_managed_setup", None, "not_checked", "verify_site_managed_oidc_setup")
     elif oidc:
         exchange = source.get("exchangeEndpointVerified") if versioned else setup.get("exchangeEndpointActive")
@@ -287,7 +287,7 @@ def diagnose(opts, caps, data, snapshot_status, capabilities_status):
                   ["live_dns", "sender_domain_authority", "signing_key_access", "origin_trial_token",
                    "browser_provider_session", "end_to_end_consent_and_receipt", "current_permission"]
                   + (["site_managed_oidc_setup"] if oidc else []),
-                  [SITE_OIDC_NOTE if opts["oidc-mode"] == "site-managed" else OIDC_SCOPE_NOTE] if oidc else [])
+                  [SITE_OIDC_NOTE if opts.get("oidc-mode", "hosted") == "site-managed" else OIDC_SCOPE_NOTE] if oidc else [])
 
 
 def fetch_capabilities(origin):
