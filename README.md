@@ -10,10 +10,13 @@ pipx run --spec xcim-cli==0.2.0 xcim doctor --attester emabled --json
 
 Node 22+ or Python 3.9+ is required, respectively. Run from source with `node xcim.mjs doctor --attester emabled --json` or `python xcim_doctor.py doctor --attester emabled --json`.
 
+**Development version:** The `--oidc-mode` option documented below is unreleased and is not available in the published 0.2.0 packages. Until a newer version is published, use it only from this development source; the installation commands above install 0.2.0.
+
 ## Choose an attester and profile
 
 - `--attester emabled` (default) reads `https://api.emabled.com/v1/capabilities`. An explicit HTTPS origin, without a path, credentials, query, fragment or non-default port, can be used for another attester that implements the same capability contract. That contract is a compatibility requirement for this release, not an XCIM-mandated endpoint.
 - `--workflow company|esp` (default `company`) selects the workflow. For company setup, `--profile evp|oidc|both` (default `both`) selects the identity checks. `--evp-mode vendor|hosted` (default `vendor`) distinguishes a vendor-origin form from a hosted one. Advertised experimental EVP support is not proof that the origin or browser is eligible.
+- For a company OIDC profile, `--oidc-mode hosted|site-managed` (default `hosted`) identifies who manages the sign-in flow. Use `site-managed` only if your site's backend handles the provider callback and submits identity evidence to Emabled. Doctor does not infer the mode from the snapshot.
 - `--intent operate|test` (default `operate`) distinguishes operating an existing connection from preparing a new OIDC sign-in test. `test` requires the company workflow and an OIDC profile. It checks prerequisites; it does not start a test.
 - `--offline` makes no HTTP requests. Without it, the company workflow makes one unauthenticated HTTPS GET with a five-second deadline and rejects redirects. The ESP workflow is always offline: the public capability response does not describe ESP workspace setup. No workflow reads browser sessions or uses vendor, ESP, database, or publishing credentials.
 
@@ -24,6 +27,8 @@ The public capability endpoint does not expose workspace settings. Use the diagn
 ```sh
 xcim doctor --attester emabled --snapshot setup.json --source src_example --profile oidc --json
 xcim doctor --attester emabled --snapshot setup.json --source src_example --profile oidc --intent test --json
+# If your own backend manages the OIDC callback:
+xcim doctor --attester emabled --snapshot setup.json --source src_example --profile oidc --oidc-mode site-managed --json
 ```
 
 Snapshots are operator-supplied observations, not signed evidence. They are supported only by the Emabled adapter and expire after 24 hours. The versioned export records the selected site when available. `--source` overrides that selection and the file must contain that source. A versioned export without a selected site is not an inventory: choose a site and export again or pass the ID of a site in the file. With legacy JSON, always pass `--source` for a paginated or site-scoped response; the legacy fields cannot distinguish the final page from a complete result.
@@ -31,6 +36,8 @@ Snapshots are operator-supplied observations, not signed evidence. They are supp
 The report separates public capabilities from recorded workspace configuration: application registration, signed manifest publication, pairwise key configuration, source binding, recorded website DNS verification, exact return URI, exchange endpoint, provider binding/review and browser bootstrap. It does not independently verify any of those proofs. Live DNS, sender-domain authority, access to signing keys, Origin Trial token validity, end-to-end consent and receipts, and current permission are not checked.
 
 The recorded exchange, provider-binding, review, and bootstrap fields describe Emabled's hosted OIDC relay setup. They are not universal prerequisites for a site-managed OIDC flow. The snapshot does not identify which OIDC integration mode a site uses. Reports with OIDC selected include this limitation in `notes` and list `site_managed_oidc_setup` under `not_checked`.
+
+With `--oidc-mode site-managed`, Doctor does not evaluate those hosted-relay fields. Instead it reports `oidc.site_managed_setup` as `unknown`, with `evidence: not_checked` and a blocking `verify_site_managed_oidc_setup` action. This cannot become `configured` in this version: inspect the site backend and independently test identity, consent and return. If no other checks block, this still exits 2, not 0. The mode applies to both `--intent operate` and `--intent test`; it does not run a sign-in test. Omitting the flag retains the existing hosted-relay behavior.
 
 In versioned exports, `oidc.exchange_endpoint` uses the selected site's `exchangeEndpointVerified` flag. If that flag is absent or `null`, the check is unknown. An older unversioned response only records application-wide endpoint activity; it does not show the endpoint is verified for the selected site.
 
@@ -53,7 +60,7 @@ The report distinguishes an operator-controlled feature from missing role, MFA, 
 With `--json`, stdout contains one JSON object (`schema: xcim-doctor/v1`). Each check has:
 
 - `status`: `configured` (observed), `missing` (explicitly absent), or `unknown` (insufficient evidence).
-- `evidence`: `attester_capabilities` or `console_snapshot`. Consult the top-level evidence statuses to distinguish an observed response from an unavailable or stale one.
+- `evidence`: `attester_capabilities`, `console_snapshot`, or `not_checked` for the site-managed setup Doctor cannot assess. Consult the top-level evidence statuses to distinguish an observed response from an unavailable or stale one.
 - `human_required`: a blocking next step requires a human. Missing evidence does not turn every dependent check into a separate human task.
 - `next_action`: stable machine-readable instruction code, or `null` for a configured check.
 - `actor`: who can handle that action (`agent`, `workspace_admin`, `company_admin`, `attester_operator`, or `browser_user`), or `null` when no action is needed. An actor is guidance, not permission to take the action.

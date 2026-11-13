@@ -91,7 +91,9 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(doctor.inspect_snapshot(changed, workflow="esp"), "invalid")
         self.assertEqual(doctor.inspect_snapshot(dict(esp, observedAt="2000-01-01T00:00:00Z"), workflow="esp"), "stale")
         for flags in (("--workflow", "esp", "--profile", "oidc"), ("--workflow", "esp", "--attester", "https://other.example"),
-                      ("--workflow", "esp", "--intent", "test"), ("--intent", "test", "--profile", "evp")):
+                      ("--workflow", "esp", "--intent", "test"), ("--intent", "test", "--profile", "evp"),
+                      ("--workflow", "esp", "--oidc-mode", "site-managed"), ("--profile", "evp", "--oidc-mode", "hosted"),
+                      ("--oidc-mode", "invalid"), ("--oidc-mode", "hosted", "--oidc-mode", "site-managed")):
             with self.assertRaises(ValueError):
                 doctor.parse_args(["doctor", *flags])
 
@@ -116,6 +118,43 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(code, 2)
             self.assertTrue(check(report, "oidc.provider_review")["human_required"])
             self.assertTrue(check(report, "oidc.provider_review")["blocking"])
+
+    def test_site_managed_oidc_does_not_require_hosted_relay_or_assert_readiness(self):
+        setup = sample()
+        setup["exchangeEndpointActive"] = False
+        setup["sources"][0].update(oauthBindingActive=False, oauthReviewCurrent=False, oauthBootstrapConfirmed=False)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "setup.json"
+            path.write_text(json.dumps(setup), encoding="utf-8")
+            args = ["doctor", "--profile", "oidc", "--snapshot", str(path)]
+            default_hosted = doctor.run(doctor.parse_args(args), lambda origin: CAPS)
+            explicit_hosted = doctor.run(doctor.parse_args([*args, "--oidc-mode", "hosted"]), lambda origin: CAPS)
+            self.assertEqual(default_hosted, explicit_hosted)
+            self.assertEqual(default_hosted[1]["summary"]["blocking"], 4)
+            for intent in ("operate", "test"):
+                with self.subTest(intent=intent):
+                    code, report = doctor.run(doctor.parse_args([*args, "--oidc-mode", "site-managed", "--intent", intent]), lambda origin: CAPS)
+                    self.assertEqual(code, 2)
+                    self.assertEqual(report["summary"]["blocking"], 1)
+                    self.assertEqual(check(report, "oidc.site_managed_setup"), {
+                        "id": "oidc.site_managed_setup", "status": "unknown", "evidence": "not_checked",
+                        "human_required": False, "next_action": "verify_site_managed_oidc_setup", "actor": "agent",
+                        "severity": "blocker", "blocking": True,
+                    })
+                    ids = {row["id"] for row in report["checks"]}
+                    self.assertTrue(ids.isdisjoint({"oidc.exchange_endpoint", "oidc.provider_binding", "oidc.provider_review", "oidc.bootstrap"}))
+                    self.assertEqual(check(report, "oidc.support")["status"], "configured")
+                    self.assertIn("site_managed_oidc_setup", report["not_checked"])
+                    self.assertIn("not assessed", report["notes"][0])
+            report = doctor.diagnose(doctor.parse_args(["doctor", "--profile", "both", "--oidc-mode", "site-managed"]), CAPS,
+                                     setup, "fresh", "observed")
+            self.assertEqual(check(report, "evp.delivery_mode")["status"], "missing")
+            self.assertEqual(check(report, "oidc.site_managed_setup")["status"], "unknown")
+            relay_ready = sample()
+            report = doctor.diagnose(doctor.parse_args(["doctor", "--profile", "oidc", "--oidc-mode", "site-managed"]),
+                                     CAPS, relay_ready, "fresh", "observed")
+            self.assertEqual(check(report, "oidc.site_managed_setup")["status"], "unknown")
+            self.assertEqual(report["summary"]["blocking"], 1)
             setup["sources"][0]["oauthBootstrapConfirmed"] = False
             path.write_text(json.dumps(setup), encoding="utf-8")
             code, report = doctor.run(doctor.parse_args(args), lambda origin: CAPS)
@@ -229,6 +268,11 @@ class DoctorTests(unittest.TestCase):
                 ["--offline", "--snapshot", str(selected_path)],
                 ["--offline", "--snapshot", str(selected_path), "--source", "src_unknown"],
                 ["--offline", "--snapshot", str(scoped_path), "--profile", "oidc"],
+                ["--offline", "--snapshot", str(scoped_path), "--profile", "oidc", "--oidc-mode", "site-managed"],
+                ["--offline", "--snapshot", str(scoped_path), "--oidc-mode", "site-managed", "--intent", "test"],
+                ["--offline", "--snapshot", str(scoped_path), "--profile", "oidc", "--oidc-mode", "hosted"],
+                ["--offline", "--profile", "evp", "--oidc-mode", "hosted"],
+                ["--workflow", "esp", "--oidc-mode", "site-managed"], ["--oidc-mode", "bad"],
                 ["--offline", "--snapshot", str(path), "--source", "src_unknown"],
                 ["--offline", "--snapshot", str(path), "--source", "src_example", "--profile", "evp", "--evp-mode", "hosted"],
                 ["--offline", "--snapshot", str(Path(folder) / "not-found")],

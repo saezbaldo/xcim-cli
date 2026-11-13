@@ -16,7 +16,9 @@ COMPANY_SNAPSHOT = "xcim-doctor/company-snapshot/v1"
 ESP_SNAPSHOT = "xcim-doctor/esp-snapshot/v1"
 OIDC_SCOPE_NOTE = ("Recorded OIDC exchange, binding, review and bootstrap checks describe the Emabled-hosted relay, "
                    "not site-managed OIDC. The snapshot does not establish which OIDC mode the site uses.")
-USAGE = "xcim doctor [--attester emabled|https://host] [--workflow company|esp] [--profile evp|oidc|both] [--evp-mode vendor|hosted] [--intent operate|test] [--snapshot FILE [--source src_ID]] [--offline] [--json]"
+SITE_OIDC_NOTE = ("Site-managed OIDC setup is not assessed by Doctor. Independently verify the site backend "
+                  "and the end-to-end identity and consent flow.")
+USAGE = "xcim doctor [--attester emabled|https://host] [--workflow company|esp] [--profile evp|oidc|both] [--evp-mode vendor|hosted] [--oidc-mode hosted|site-managed] [--intent operate|test] [--snapshot FILE [--source src_ID]] [--offline] [--json]"
 APP = r"urn:xcim:app:[A-Za-z0-9._~-]{1,54}"
 SOURCE = r"src_[A-Za-z0-9_-]{4,43}"
 REQUEST = r"pr_[A-Za-z0-9_-]{5,44}"
@@ -42,7 +44,7 @@ def fail():
 def parse_args(argv):
     if not argv or argv[0] != "doctor":
         fail()
-    opts = {"attester": "emabled", "profile": "both", "evp-mode": "vendor", "workflow": "company", "intent": "operate"}
+    opts = {"attester": "emabled", "profile": "both", "evp-mode": "vendor", "oidc-mode": "hosted", "workflow": "company", "intent": "operate"}
     used = set()
     values = iter(argv[1:])
     for arg in values:
@@ -52,7 +54,7 @@ def parse_args(argv):
         used.add(key)
         if key in ("json", "offline"):
             opts[key] = True
-        elif key in ("attester", "profile", "evp-mode", "snapshot", "source", "workflow", "intent"):
+        elif key in ("attester", "profile", "evp-mode", "oidc-mode", "snapshot", "source", "workflow", "intent"):
             value = next(values, None)
             if not value or value.startswith("--"):
                 fail()
@@ -61,9 +63,13 @@ def parse_args(argv):
             fail()
     if opts["profile"] not in ("evp", "oidc", "both") or opts["evp-mode"] not in ("vendor", "hosted"):
         fail()
+    if opts["oidc-mode"] not in ("hosted", "site-managed"):
+        fail()
     if opts["workflow"] not in ("company", "esp") or opts["intent"] not in ("operate", "test"):
         fail()
     if opts["intent"] == "test" and (opts["workflow"] != "company" or opts["profile"] == "evp"):
+        fail()
+    if "oidc-mode" in used and (opts["workflow"] != "company" or opts["profile"] == "evp"):
         fail()
     if opts["workflow"] == "esp" and used.intersection(("profile", "evp-mode", "source")):
         fail()
@@ -264,7 +270,9 @@ def diagnose(opts, caps, data, snapshot_status, capabilities_status):
     source = selected if bound else {}
     private_check("source.website_dns_recorded", source.get("domainVerificationRecorded"), "review_website_dns_challenge")
     private_check("source.return_uri", source.get("returnRegistered"), "review_and_register_exact_return_uri")
-    if oidc:
+    if oidc and opts["oidc-mode"] == "site-managed":
+        add("oidc.site_managed_setup", None, "not_checked", "verify_site_managed_oidc_setup")
+    elif oidc:
         exchange = source.get("exchangeEndpointVerified") if versioned else setup.get("exchangeEndpointActive")
         private_check("oidc.exchange_endpoint", exchange, "review_exchange_endpoint_proof")
         private_check("oidc.provider_binding", source.get("oauthBindingActive"), "review_provider_binding")
@@ -278,7 +286,8 @@ def diagnose(opts, caps, data, snapshot_status, capabilities_status):
     return finish("company", opts.get("intent", "operate"), opts["profile"], opts["evp-mode"] if evp else None, selected,
                   ["live_dns", "sender_domain_authority", "signing_key_access", "origin_trial_token",
                    "browser_provider_session", "end_to_end_consent_and_receipt", "current_permission"]
-                  + (["site_managed_oidc_setup"] if oidc else []), [OIDC_SCOPE_NOTE] if oidc else [])
+                  + (["site_managed_oidc_setup"] if oidc else []),
+                  [SITE_OIDC_NOTE if opts["oidc-mode"] == "site-managed" else OIDC_SCOPE_NOTE] if oidc else [])
 
 
 def fetch_capabilities(origin):
