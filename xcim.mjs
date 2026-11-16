@@ -7,7 +7,8 @@ const SCHEMA = 'xcim-doctor/v1';
 const COMPANY_SNAPSHOT = 'xcim-doctor/company-snapshot/v1';
 const ESP_SNAPSHOT = 'xcim-doctor/esp-snapshot/v1';
 const OIDC_SCOPE_NOTE = 'Recorded OIDC exchange, binding, review and bootstrap checks describe the Emabled-hosted relay, not site-managed OIDC. The snapshot does not establish which OIDC mode the site uses.';
-const USAGE = 'xcim doctor [--attester emabled|https://host] [--workflow company|esp] [--profile evp|oidc|both] [--evp-mode vendor|hosted] [--intent operate|test] [--snapshot FILE [--source src_ID]] [--offline] [--json]';
+const SITE_OIDC_NOTE = 'Site-managed OIDC setup is not assessed by Doctor. Independently verify the site backend and the end-to-end identity and consent flow.';
+const USAGE = 'xcim doctor [--attester emabled|https://host] [--workflow company|esp] [--profile evp|oidc|both] [--evp-mode vendor|hosted] [--oidc-mode hosted|site-managed] [--intent operate|test] [--snapshot FILE [--source src_ID]] [--offline] [--json]';
 const APP = /^urn:xcim:app:[A-Za-z0-9._~-]{1,54}$/;
 const SOURCE = /^src_[A-Za-z0-9_-]{4,43}$/;
 const REQUEST = /^pr_[A-Za-z0-9_-]{5,44}$/;
@@ -29,22 +30,24 @@ const decode = (b) => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decod
 
 export function parseArgs(argv) {
   if (argv[0] !== 'doctor') fail();
-  const opts = { attester: 'emabled', profile: 'both', 'evp-mode': 'vendor', workflow: 'company', intent: 'operate' };
+  const opts = { attester: 'emabled', profile: 'both', 'evp-mode': 'vendor', 'oidc-mode': 'hosted', workflow: 'company', intent: 'operate' };
   const used = new Set();
   for (let i = 1; i < argv.length; i++) {
     const key = argv[i].slice(2);
     if (!argv[i].startsWith('--') || used.has(key)) fail();
     used.add(key);
     if (['json', 'offline'].includes(key)) opts[key] = true;
-    else if (['attester', 'profile', 'evp-mode', 'snapshot', 'source', 'workflow', 'intent'].includes(key)) {
+    else if (['attester', 'profile', 'evp-mode', 'oidc-mode', 'snapshot', 'source', 'workflow', 'intent'].includes(key)) {
       const value = argv[++i];
       if (!value || value.startsWith('--')) fail();
       opts[key] = value;
     } else fail();
   }
   if (!['evp', 'oidc', 'both'].includes(opts.profile) || !['vendor', 'hosted'].includes(opts['evp-mode'])) fail();
+  if (!['hosted', 'site-managed'].includes(opts['oidc-mode'])) fail();
   if (!['company', 'esp'].includes(opts.workflow) || !['operate', 'test'].includes(opts.intent)) fail();
   if (opts.intent === 'test' && (opts.workflow !== 'company' || opts.profile === 'evp')) fail();
+  if (used.has('oidc-mode') && (opts.workflow !== 'company' || opts.profile === 'evp')) fail();
   if (opts.workflow === 'esp' && ['profile', 'evp-mode', 'source'].some((key) => used.has(key))) fail();
   if (opts.source && (!opts.snapshot || !matches(opts.source, SOURCE))) fail();
   if (opts.attester === 'emabled') opts.origin = 'https://api.emabled.com';
@@ -208,7 +211,9 @@ export function diagnose(opts, caps, data, snapshotStatus, capabilitiesStatus) {
   const source = bound ? selected : null;
   privateCheck('source.website_dns_recorded', source?.domainVerificationRecorded, 'review_website_dns_challenge');
   privateCheck('source.return_uri', source?.returnRegistered, 'review_and_register_exact_return_uri');
-  if (oidc) {
+  if (oidc && opts['oidc-mode'] === 'site-managed') {
+    add('oidc.site_managed_setup', 'unknown', 'not_checked', 'verify_site_managed_oidc_setup');
+  } else if (oidc) {
     privateCheck('oidc.exchange_endpoint', setup?.schema === COMPANY_SNAPSHOT
       ? source?.exchangeEndpointVerified : setup?.exchangeEndpointActive, 'review_exchange_endpoint_proof');
     privateCheck('oidc.provider_binding', source?.oauthBindingActive, 'review_provider_binding');
@@ -221,7 +226,7 @@ export function diagnose(opts, caps, data, snapshotStatus, capabilitiesStatus) {
   return finish('company', opts.intent ?? 'operate', opts.profile, evp ? opts['evp-mode'] : null, selected,
     ['live_dns', 'sender_domain_authority', 'signing_key_access', 'origin_trial_token',
       'browser_provider_session', 'end_to_end_consent_and_receipt', 'current_permission',
-      ...(oidc ? ['site_managed_oidc_setup'] : [])], oidc ? [OIDC_SCOPE_NOTE] : []);
+      ...(oidc ? ['site_managed_oidc_setup'] : [])], oidc ? [opts['oidc-mode'] === 'site-managed' ? SITE_OIDC_NOTE : OIDC_SCOPE_NOTE] : []);
 }
 
 export async function fetchCapabilities(origin) {
